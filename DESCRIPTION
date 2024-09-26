@@ -1,0 +1,24 @@
+Package: libOGT
+Title: Handy Functions for Vessel Data Processing
+Version: 0.0.1
+Authors@R: 
+    person("Daniel", "Cano", , "daniel.cano@ieo.csic.es", role = c("aut", "cre"),
+           comment = c(ORCID = "YOUR-ORCID-ID"))
+Description: Functions useful when procesing AIS or GPS data.
+License: `use_mit_license()`, `use_gpl3_license()` or friends to pick a
+    license
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 7.3.1
+Imports:
+        dplyr,
+        stats,
+        tools,
+        lubridate,
+        hms,
+        geosphere,
+        sf,
+        imputeTS,
+        zoo,
+        purrr
+LazyData: true
