@@ -16,11 +16,12 @@
 #' @param le_met6_value Metier DCF level 6 if known (optional).
 #' @param le_met7_value Target species, AL3 code if known (optional).
 #' @param process_all Wheter to process all csv files or not, defaults to FALSE
-#' @return Several procesed .rds and .csv files with the same base name as the
+#' @return Several procesed .rds, .csv and .gpkg files with the same base name as the
 #' input and _formatted, _formatted_final and formatted_postgis appended to the
 #' file name. Except for the one with the _postgis append, files are created
 #' both in .rds and .csv format. File _final and _postgis have a geometry column,
-#' _postgis file geometry is compatible with postgis server.
+#' but note that it will be loaded as a char column. If you need proper geometr
+#' use the .gpkg file. The _postgis file geometry is compatible with postgis server.
 #' @examples
 #' # Process only one file
 #' process_white_gps_data("/dir/path/to/files/", "filename.csv", "cfr_code", "3_letter_met4_code", "metier_6_code", "Target_species_AL3")
@@ -36,6 +37,7 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
     rds_formateado <- file.path(dirname(file_path), paste0(base_name, "_formatted.rds"))
     final_csv <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.csv"))
     final_rds <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.rds"))
+    final_gpkg <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.gpkg"))
     postgis_csv <- file.path(dirname(file_path), paste0(base_name, "_formatted_postgis.csv"))
 
     # Load the input CSV file
@@ -152,7 +154,12 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
                 col.names = TRUE,
                 quote = FALSE,
                 na = "")
+
     saveRDS(vessel_track_df, file = final_rds)
+
+    # Use sf to preserve proper geometries
+    vessel_track_sf <- sf::st_as_sf(vessel_track_df, coords = c("SI_LONG", "SI_LATI"), crs = 4326)
+    sf::st_write(vessel_track_sf, final_gpkg, append = FALSE)
   }
 
   # Process files based on the process_all flag
