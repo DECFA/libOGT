@@ -2,3 +2,7 @@
 .Rhistory
 .Rbuildignore
 .radian_profile
+.Rdata
+.httr-oauth
+.DS_Store
+.quarto
