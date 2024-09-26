@@ -25,7 +25,7 @@
 #' @examples
 #' # Process only one file
 #' process_white_gps_data("/dir/path/to/files/", "filename.csv", "cfr_code", "3_letter_met4_code", "metier_6_code", "Target_species_AL3")
-#' # Process all files in dir
+#' # Process all files in directory
 #' process_white_gps_data("/dir/path/to/files/", "cfr_code", "3_letter_met4_code", proces_all = TRUE)
 #' @export
 process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_value = NA, le_met6_value = NA, le_met7_value = NA, process_all = FALSE) {
