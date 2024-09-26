@@ -20,7 +20,7 @@
 #' input and _formatted, _formatted_final and formatted_postgis appended to the
 #' file name. Except for the one with the _postgis append, files are created
 #' both in .rds and .csv format. File _final and _postgis have a geometry column,
-#' but note that it will be loaded as a char column. If you need proper geometr
+#' but note that it will be loaded as a char column. If you need proper geometry
 #' use the .gpkg file. The _postgis file geometry is compatible with postgis server.
 #' @examples
 #' # Process only one file
