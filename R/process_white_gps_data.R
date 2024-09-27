@@ -175,6 +175,6 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
       stop("input_file must be provided if process_all is FALSE")
     }
     input_path <- file.path(dir, input_file)
-    process_single_file(input_path, vessel_code, le_met4_value, le_met7_value, le_met7_value)
+    process_single_file(input_path, vessel_code, le_met4_value, le_met6_value, le_met7_value)
   }
 }
