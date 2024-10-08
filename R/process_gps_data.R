@@ -27,59 +27,62 @@
 #' @export
 process_gps_data <- function(dir, input_file = NULL, gps_type = "blanco", vessel_code, le_met4_value = NA, le_met6_value = NA, le_met7_value = NA, process_all = FALSE) {
 
-  # Helper function to generate output filenames with correct suffixes
-  generate_output_filename <- function(file_path, suffix) {
-    base_name <- tools::file_path_sans_ext(basename(file_path))  # Extract the base filename without extension
-    return(file.path(dirname(file_path), paste0(base_name, suffix)))  # Append the suffix to the base name
-  }
-
-  # Helper function to copy the original file with "_orig" appended before the extension
-  copy_original_file <- function(file_path) {
-    base_name <- tools::file_path_sans_ext(basename(file_path))  # Extract base filename without extension
-    new_file_path <- file.path(dirname(file_path), paste0(base_name, "_orig.csv"))  # Append "_orig" before extension
-    file.copy(file_path, new_file_path, overwrite = TRUE)  # Copy the original file
-    return(new_file_path)  # Return the path of the copied file
-  }
-
   # Helper function to transform GPS rojo data to the same format as GPS blanco
-  transform_red_to_white <- function(file_path, dir) {
+  transform_red_to_white <- function(file_path) {
     # Load the input CSV file
     data <- readr::read_csv(file_path)
 
-    # Renaming columns to match the gps_blanco structure
-    data <- data %>%
-      dplyr::rename(
-        Date = `UTC DATE`,
-        Time = `UTC TIME`,
-        Latitude = LATITUDE,
-        Longitude = LONGITUDE,
-        Speed = SPEED,
-        Course = HEADING,
-        Altitude = ALTITUDE
-      )
-    # Convert Date to Date type and Time to POSIXct type
-    data <- data %>%
-      dplyr::mutate(
-        Date = as.Date(Date, format = "%Y/%m/%d"),  # Ensure Date is a valid Date
-        Time = format(as.POSIXct(Time, format = "%H:%M:%S"), "%H:%M:%S")  # Ensure Time is a valid time format
-      )
+    # Renaming columns to match the gps_blanco structure if they exist
+    if ("UTC DATE" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Date = `UTC DATE`)
+    }
+    if ("UTC TIME" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Time = `UTC TIME`)
+    }
+    if ("LATITUDE" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Latitude = LATITUDE)
+    }
+    if ("LONGITUDE" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Longitude = LONGITUDE)
+    }
+    if ("SPEED" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Speed = SPEED)
+    }
+    if ("HEADING" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Course = HEADING)
+    }
+    if ("ALTITUDE" %in% colnames(data)) {
+      data <- data %>% dplyr::rename(Altitude = ALTITUDE)
+    }
+
+    # Convert Date to Date type and Time to POSIXct type if they exist
+    if ("Date" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Date = as.Date(Date, format = "%Y/%m/%d"))
+    }
+    if ("Time" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Time = format(as.POSIXct(Time, format = "%H:%M:%S"), "%H:%M:%S"))
+    }
 
     # Convert speed from m/s to km/h if necessary
-    data <- data %>%
-      dplyr::mutate(Speed = Speed * 3.6,
-                    Type = 1,
-                    Distance = 1,
-                    Essential = 1)
+    if ("Speed" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Speed = Speed * 3.6)
+    }
+
+    # Add default columns if they do not exist
+    if (!"Type" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Type = 1)
+    }
+    if (!"Distance" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Distance = 1)
+    }
+    if (!"Essential" %in% colnames(data)) {
+      data <- data %>% dplyr::mutate(Essential = 1)
+    }
 
     # Remove unnecessary columns and select relevant ones
-    data <- data %>%
-      dplyr::select(Date, Time, Latitude, Longitude, Altitude, Speed, Course, Type, Distance, Essential)
+    data <- data %>% dplyr::select(Date, Time, Latitude, Longitude, Altitude, Speed, Course, Type, Distance, Essential)
 
-    # Generate temporal file
-    transformed_file_path <- file.path(dir, paste0(tools::file_path_sans_ext(basename(file_path)), "_transformed.csv"))
-    write.table(data, file = transformed_file_path, sep = ";", dec = ".", row.names = FALSE, col.names = TRUE, quote = FALSE)
-
-    return(transformed_file_path)
+    return(data)
   }
 
   # Process files based on the process_all flag
@@ -87,9 +90,15 @@ process_gps_data <- function(dir, input_file = NULL, gps_type = "blanco", vessel
     files <- list.files(dir, pattern = "\\.csv$", full.names = TRUE)
     for (file_path in files) {
       if (gps_type == "rojo") {
-        transformed_file <- transform_red_to_white(file_path, dir)  # Transform gps rojo
-        process_white_gps_data(dir, basename(transformed_file), vessel_code, le_met4_value, le_met6_value, le_met7_value)
-        unlink(transformed_file)  # Delete temp file after processing
+        # Transform the red GPS data to match the white GPS structure
+        transformed_data <- transform_red_to_white(file_path)
+
+        # Overwrite the original file with the transformed data (in-memory transformation)
+        transformed_file_path <- file_path
+        write.table(transformed_data, file = transformed_file_path, sep = ";", dec = ".", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+        # Process the transformed file
+        process_white_gps_data(dir, basename(transformed_file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
       } else {
         process_white_gps_data(dir, basename(file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
       }
@@ -100,9 +109,15 @@ process_gps_data <- function(dir, input_file = NULL, gps_type = "blanco", vessel
     }
     input_path <- file.path(dir, input_file)
     if (gps_type == "rojo") {
-      transformed_file <- transform_red_to_white(input_path, dir)  # Transform gps rojo
-      process_white_gps_data(dir, basename(transformed_file), vessel_code, le_met4_value, le_met6_value, le_met7_value)
-      unlink(transformed_file)  # EDeelete temp file after processing
+      # Transform the red GPS data to match the white GPS structure
+      transformed_data <- transform_red_to_white(input_path)
+
+      # Overwrite the original file with the transformed data (in-memory transformation)
+      transformed_file_path <- input_path
+      write.table(transformed_data, file = transformed_file_path, sep = ";", dec = ".", row.names = FALSE, col.names = TRUE, quote = FALSE)
+
+      # Process the transformed file
+      process_white_gps_data(dir, basename(transformed_file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
     } else {
       process_white_gps_data(dir, basename(input_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
     }
