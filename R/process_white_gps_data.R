@@ -16,12 +16,9 @@
 #' @param le_met6_value Metier DCF level 6 if known (optional).
 #' @param le_met7_value Target species, AL3 code if known (optional).
 #' @param process_all Wheter to process all csv files or not, defaults to FALSE
-#' @return Several procesed .rds, .csv and .gpkg files with the same base name as the
-#' input and _formatted, _formatted_final and formatted_postgis appended to the
-#' file name. Except for the one with the _postgis append, files are created
-#' both in .rds and .csv format. File _final and _postgis have a geometry column,
-#' but note that it will be loaded as a char column. If you need proper geometry
-#' use the .gpkg file. The _postgis file geometry is compatible with postgis server.
+#' @param harbour_dataframe
+#' @return A .csv and a RData file with the same base name as the
+#' input and _formatted, _formatted_final appended to the file name.
 #' @examples
 #' # Process only one file
 #' process_white_gps_data("/dir/path/to/files/", "filename.csv", "cfr_code", "3_letter_met4_code", "metier_6_code", "Target_species_AL3")
@@ -29,6 +26,10 @@
 #' process_white_gps_data("/dir/path/to/files/", "cfr_code", "3_letter_met4_code", proces_all = TRUE)
 #' @export
 process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_value = NA, le_met6_value = NA, le_met7_value = NA, process_all = FALSE) {
+
+  # Load harbour data from library
+  data("puertos", package = "libOGT")
+
   # Helper function to process a single file
   process_single_file <- function(file_path, vessel_code, le_met4_value, le_met6_value, le_met7_value) {
     # Extract the base name
@@ -37,6 +38,7 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
     rds_formateado <- file.path(dirname(file_path), paste0(base_name, "_formatted.rds"))
     final_csv <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.csv"))
     final_rds <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.rds"))
+    final_rdata <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.RData"))
     final_gpkg <- file.path(dirname(file_path), paste0(base_name, "_formatted_final.gpkg"))
     postgis_csv <- file.path(dirname(file_path), paste0(base_name, "_formatted_postgis.csv"))
 
@@ -102,7 +104,7 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
     vessel_track_df <- stats::na.omit(vessel_track_df)
 
     vessel_track_df <- vessel_track_df %>%
-      dplyr::mutate(SU_ISOB = FALSE, FT_REF = NA, SI_OGT = FALSE) %>%
+      dplyr::mutate(SU_ISOB = FALSE, FT_REF = NA, SI_OGT = FALSE, SI_LOG = FALSE) %>%
       dplyr::mutate(
         VE_REF = vessel_code,
         VE_REF = as.factor(VE_REF),
@@ -113,6 +115,7 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
         SI_FSTATUS = as.factor(NA),
         SU_ISOB = as.factor(SU_ISOB),
         SI_OGT = as.factor(SI_OGT),
+        SI_LOG = as.factor(SI_LOG),
         SI_FOPER = as.factor(NA)
       )
 
@@ -120,46 +123,53 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
       dplyr::select(
         VE_REF, FT_REF, SI_TIMESTAMP, SI_LATI, SI_LONG, SI_SP, SI_SPCA, SI_HE,
         SI_COG, SI_DISTANCECA, SI_TDIFF, LE_MET4, LE_MET6, LE_MET7,
-        SI_FSTATUS, SI_FOPER, SU_ISOB, SI_OGT
+        SI_FSTATUS, SI_FOPER, SU_ISOB, SI_OGT, SI_LOG
       )
 
-    # Save the final CSV and RDS
-    write.table(vessel_track_df,
-                file = csv_formateado,
-                sep = ";",
-                dec = ".",
-                row.names = FALSE,
-                col.names = TRUE,
-                quote = FALSE)
-
-    saveRDS(vessel_track_df, file = rds_formateado)
-
-    vessel_track_df$geometry <- sf::st_as_text(sf::st_as_sf(vessel_track_df, coords = c("SI_LONG", "SI_LATI"), crs = 4326)$geometry)
-
-    write.table(as.data.frame(vessel_track_df),
-                file = postgis_csv,
-                sep = ";",
-                dec = ".",
-                row.names = FALSE,
-                col.names = TRUE,
-                quote = FALSE,
-                na = "")
-
-    # Save the final processed data in required formats
-    write.table(vessel_track_df,
-                file = final_csv,
-                sep = ";",
-                dec = ".",
-                row.names = FALSE,
-                col.names = TRUE,
-                quote = FALSE,
-                na = "")
-
-    saveRDS(vessel_track_df, file = final_rds)
+    # # Save the final CSV and RDS
+    # write.table(vessel_track_df,
+    #             file = csv_formateado,
+    #             sep = ";",
+    #             dec = ".",
+    #             row.names = FALSE,
+    #             col.names = TRUE,
+    #             quote = FALSE)
+    #
+    # saveRDS(vessel_track_df, file = rds_formateado)
+    #
+    # vessel_track_df$geometry <- sf::st_as_text(sf::st_as_sf(vessel_track_df, coords = c("SI_LONG", "SI_LATI"), crs = 4326)$geometry)
+    #
+    # write.table(as.data.frame(vessel_track_df),
+    #             file = postgis_csv,
+    #             sep = ";",
+    #             dec = ".",
+    #             row.names = FALSE,
+    #             col.names = TRUE,
+    #             quote = FALSE,
+    #             na = "")
+    #
+    # # Save the final processed data in required formats
+    # write.table(vessel_track_df,
+    #             file = final_csv,
+    #             sep = ";",
+    #             dec = ".",
+    #             row.names = FALSE,
+    #             col.names = TRUE,
+    #             quote = FALSE,
+    #             na = "")
+    #
+    # saveRDS(vessel_track_df, file = final_rds)
 
     # Use sf to preserve proper geometries
     vessel_track_sf <- sf::st_as_sf(vessel_track_df, coords = c("SI_LONG", "SI_LATI"), crs = 4326)
-    sf::st_write(vessel_track_sf, final_gpkg, append = FALSE)
+
+    # Call `mark_harbour` function
+
+    vessel_track_sf <- mark_harbour(vessel_track_sf, puertos)
+    vessel_track_sf <- vessel_track_sf %>%
+      dplyr::relocate(SI_HARB, .after = SI_LOG)
+    #sf::st_write(vessel_track_sf, final_gpkg, append = FALSE)
+    save(vessel_track_sf, file = final_rdata)
   }
 
   # Process files based on the process_all flag
