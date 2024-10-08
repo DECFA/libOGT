@@ -4,21 +4,21 @@
 \alias{gps_match_oper}
 \title{Assign operations using gps and observer or OGT operations diary.}
 \usage{
-gps_match_oper(gps, diario, timezone = "UTC", use_aggregated = FALSE)
+gps_match_oper(gps_file, log_file, timezone = "UTC", use_aggregated = FALSE)
 }
 \arguments{
+\item{gps_file}{File where the gps data is.}
+
+\item{log_file}{File with the diary info.}
+
 \item{timezone}{Defaults to UTC.}
 
 \item{use_aggregated}{Defines if diary data has to be aggregated by gear,
 This has to be set to TRUE if vessel has used more than one gear in a day,
 but defaults to FALSE}
-
-\item{gps_file}{File where the gps data is.}
-
-\item{diary_file}{File with the diary info.}
 }
 \value{
-returns file a gps one but with fishing operations marked in a new
+returns a gps file but with fishing operations marked in a new
 column named SI_FOPER and values ST (Steaming), SE (Setting), HA (Hauling)
 and WT (Waiting)
 }
@@ -36,7 +36,7 @@ fin_virada
 }
 \details{
 These columns will be automatically generated if create_diary_from_ogt is
-used, so make sure that these columns are present in the file if the diary
+used, so make sure that these columns are present in the file if the log file
 is created by an observer. On ly dates and times are needed, no positions
 have to be included on this file.
 

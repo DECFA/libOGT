@@ -93,12 +93,15 @@ process_gps_data <- function(dir, input_file = NULL, gps_type = "blanco", vessel
         # Transform the red GPS data to match the white GPS structure
         transformed_data <- transform_red_to_white(file_path)
 
-        # Overwrite the original file with the transformed data (in-memory transformation)
-        transformed_file_path <- file_path
+        # Create a temporary file in the same directory but with a different suffix
+        transformed_file_path <- file.path(dir, paste0(tools::file_path_sans_ext(basename(file_path)), "_transformed.csv"))
         write.table(transformed_data, file = transformed_file_path, sep = ";", dec = ".", row.names = FALSE, col.names = TRUE, quote = FALSE)
 
-        # Process the transformed file
+        # Use the transformed file for process_white_gps_data
         process_white_gps_data(dir, basename(transformed_file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
+
+        # Remove the temporary file after processing
+        unlink(transformed_file_path)
       } else {
         process_white_gps_data(dir, basename(file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
       }
@@ -112,12 +115,15 @@ process_gps_data <- function(dir, input_file = NULL, gps_type = "blanco", vessel
       # Transform the red GPS data to match the white GPS structure
       transformed_data <- transform_red_to_white(input_path)
 
-      # Overwrite the original file with the transformed data (in-memory transformation)
-      transformed_file_path <- input_path
+      # Create a temporary file in the same directory but with a different suffix
+      transformed_file_path <- file.path(dir, paste0(tools::file_path_sans_ext(basename(input_file)), "_transformed.csv"))
       write.table(transformed_data, file = transformed_file_path, sep = ";", dec = ".", row.names = FALSE, col.names = TRUE, quote = FALSE)
 
-      # Process the transformed file
+      # Use the transformed file for process_white_gps_data
       process_white_gps_data(dir, basename(transformed_file_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
+
+      # Remove the temporary file after processing
+      unlink(transformed_file_path)
     } else {
       process_white_gps_data(dir, basename(input_path), vessel_code, le_met4_value, le_met6_value, le_met7_value)
     }

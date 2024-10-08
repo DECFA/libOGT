@@ -16,7 +16,6 @@
 #' @param le_met6_value Metier DCF level 6 if known (optional).
 #' @param le_met7_value Target species, AL3 code if known (optional).
 #' @param process_all Wheter to process all csv files or not, defaults to FALSE
-#' @param harbour_dataframe
 #' @return A .csv and a RData file with the same base name as the
 #' input and _formatted, _formatted_final appended to the file name.
 #' @examples

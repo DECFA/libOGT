@@ -37,7 +37,7 @@ understand what this function is doing.
 From these two files start and end of setting and hauling events are
 identified.
 Before using this function, data from OGTs has to be processed with
-process_white_gps_data() function from this library.
+process_gps_data() function from this library.
 }
 \examples{
 create_diary(ogt1, ogt2, 600)

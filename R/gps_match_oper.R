@@ -10,31 +10,31 @@
 #' fec_vir
 #' ini_virada
 #' fin_virada
-#' 
+#'
 #' These columns will be automatically generated if create_diary_from_ogt is
-#' used, so make sure that these columns are present in the file if the diary
+#' used, so make sure that these columns are present in the file if the log file
 #' is created by an observer. On ly dates and times are needed, no positions
 #' have to be included on this file.
 #'
 #' One advantage is that function can process all .csv files under a directory or can do the process for single files.
 #' Also a gear for the vessel may be specified if it is known.
 #' @param gps_file File where the gps data is.
-#' @param diary_file File with the diary info.
+#' @param log_file File with the diary info.
 #' @param timezone Defaults to UTC.
 #' @param use_aggregated Defines if diary data has to be aggregated by gear,
 #' This has to be set to TRUE if vessel has used more than one gear in a day,
 #' but defaults to FALSE
-#' @return returns file a gps one but with fishing operations marked in a new 
+#' @return returns a gps file but with fishing operations marked in a new
 #' column named SI_FOPER and values ST (Steaming), SE (Setting), HA (Hauling)
-#' and WT (Waiting)  
+#' and WT (Waiting)
 #' @export
-gps_match_oper <- function(gps, diario, timezone = "UTC", use_aggregated = FALSE) {
+gps_match_oper <- function(gps_file, log_file, timezone = "UTC", use_aggregated = FALSE) {
   # Convert timestamps to POSIXct format
   # gps$DateTime <- as.POSIXct(paste(gps$SI_DATE, gps$SI_TIME), format="%Y-%m-%d %H:%M:%S", tz=timezone)
-  
+
   if (use_aggregated) {
-    # Aggregate diario data
-    data_to_use <- diario %>%
+    # Aggregate log_file data
+    data_to_use <- log_file %>%
       group_by(CFR, Fecha, GEAR) %>%
       reframe(
         se_1_dt = min(as.POSIXct(paste(fec_cal, ini_largada), format="%Y-%m-%d %H:%M", tz=timezone)),
@@ -44,11 +44,11 @@ gps_match_oper <- function(gps, diario, timezone = "UTC", use_aggregated = FALSE
       )
   } else {
     # Use diario as is
-    data_to_use <- diario
+    data_to_use <- log_file
   }
-  
+
   # Perform the operation
-  result <- gps %>%
+  result <- gps_file %>%
     left_join(data_to_use, by = c("VE_REF"="CFR", "SI_DATE"="Fecha"), relationship = "many-to-many") %>%
     group_by(VE_REF, SI_DATE, GEAR) %>%
     mutate(
@@ -63,7 +63,7 @@ gps_match_oper <- function(gps, diario, timezone = "UTC", use_aggregated = FALSE
       SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "Y", "N")
     ) %>%
     ungroup()  # Remove grouping
-  
+
   return(result)
 }
 
