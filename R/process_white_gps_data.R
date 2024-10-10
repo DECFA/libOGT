@@ -112,9 +112,9 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
         LE_MET6 = as.factor(ifelse(is.na(le_met6_value), NA, le_met6_value)),
         LE_MET7 = as.factor(ifelse(is.na(le_met7_value), NA, le_met7_value)),
         SI_FSTATUS = as.factor(NA),
-        SU_ISOB = as.factor(SU_ISOB),
-        SI_OGT = as.factor(SI_OGT),
-        SI_LOG = as.factor(SI_LOG),
+        SU_ISOB = as.logical(SU_ISOB),
+        SI_OGT = as.logical(SI_OGT),
+        SI_LOG = as.logical(SI_LOG),
         SI_FOPER = as.factor(NA)
       )
 
