@@ -55,16 +55,21 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
 
   # Create SI_FOPER y SI_FSTATUS columns based on conditions
   combined_data <- combined_data %>%
-    mutate(
-      grouping_var = case_when(
-        !is.na(FT_REF) ~ FT_REF,        # Use FT_REF if available
-        is.na(FT_REF) & !is.na(Marea) ~ Marea  # If FT_REF is NA, use Marea
-      )
-    ) %>%
+    # Verifica si 'Marea' existe y crea 'variable_que_me_falta' condicionalmente
+    {
+      if ("Marea" %in% names(.)) {
+        mutate(., grouping_var = ifelse(!is.na(FT_REF), FT_REF, Marea),
+               FT_REF = if_else(is.na(FT_REF), Marea, FT_REF))
+      } else {
+        mutate(., grouping_var = FT_REF)  # Si no existe 'Marea', usa solo 'FT_REF'
+      }
+    }  %>%
     # Conditionally group by VE_REF, grouping_var and Lance if present
     {
       if ("Lance" %in% names(.)) {
-        group_by(., VE_REF, grouping_var, Lance)
+        rename(FT_LA = Lance) %>%   # Rename Lance to FT_LA
+        relocate(FT_LA, .after = FT_REF)%>% # Move FT_LA column
+        group_by(., VE_REF, grouping_var, FT_LA)
       } else {
         group_by(., VE_REF, grouping_var)
       }
@@ -82,7 +87,7 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
         TRUE ~ "UN"  # Unknown if does not fit any condition
       ),
       SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "TRUE", "FALSE"),
-      FT_REF = if_else(is.na(FT_REF), Marea, FT_REF)
+
     ) %>%
     ungroup() %>%  # Remove agrupation
     # Mark proper column based on `log_source` parameter
@@ -91,8 +96,6 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
       SI_OGT = if_else(log_source == "ogt" & !is.na(ini_largada), TRUE, SI_OGT),
       SI_LOG = if_else(log_source == "log" & !is.na(ini_largada), TRUE, SI_LOG)
     )%>%
-    rename(FT_LA = Lance) %>%   # Rename Lance to FT_LA
-    relocate(FT_LA, .after = FT_REF)%>% # Move FT_LA column
     select(-tail(names(.),12)) # Remove unnecessary columns
 
   # Return final result with updated columns
