@@ -27,58 +27,63 @@
 #' @export
 gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "obs") {
 
-  # Read files based on type (.csv or .RData)
+  # Read files
   gps_data <- read_file(gps_file)
   log_data <- read_file(log_file)
 
-  # Convert SI_TIMESTAMP to formato POSIXct and create SI_DATE in gps_data
+  # if gps_file is CSV, convert 'geometry' column to a geometric object
+  if ("geometry" %in% names(gps_data)) {
+    gps_data <- gps_data %>%
+      # Cleam geometry' column to extract numeric values
+      mutate(geometry = str_remove_all(geometry, "[c\\(\\)]"),  # Remove "c(" and ")"
+             lon_lat = str_split(geometry, ", ")) %>%  # Split in longitude and latitude
+      # Convert coordinates to numeric values and create POINT geomtries
+      mutate(lon = map_dbl(lon_lat, ~ as.numeric(.x[1])),  # Extract longitude
+             lat = map_dbl(lon_lat, ~ as.numeric(.x[2])),  # Extract latitude
+             geometry = st_sfc(map2(lon, lat, ~st_point(c(.x, .y))), crs = 4326)) %>%
+      select(-lon_lat, -lon, -lat)  # Delete temp longitude and latitude columns
+  }
+
+  # Make sure it is an sf object
+  gps_data <- st_as_sf(gps_data)
+
+
+  # Convert SI_TIMESTAMP to POSIXct format and create SI_DATE in gps_data
   gps_data <- gps_data %>%
     mutate(SI_TIMESTAMP = as.POSIXct(SI_TIMESTAMP, format="%Y-%m-%d %H:%M:%S", tz = timezone),
            SI_DATE = as.Date(SI_TIMESTAMP, tz = timezone))
 
-
-  # Convert log_data columns to POSIXct for prroper combination
+  # Convert log_data columns to POSIXct
   log_data <- log_data %>%
     mutate(
       Fecha = as.Date(Fecha, format="%Y-%m-%d"),
-      fec_cal= as.Date(fec_cal, format="%Y-%m-%d"),
-      fec_vir= as.Date(fec_vir, format="%Y-%m-%d"),
-      ini_largada = as.POSIXct(paste(fec_cal, ini_largada), format="%Y-%m-%d %H:%M", tz=timezone),
-      fin_largada = as.POSIXct(paste(fec_cal, fin_largada), format="%Y-%m-%d %H:%M", tz=timezone),
-      ini_virada = as.POSIXct(paste(fec_vir, ini_virada), format="%Y-%m-%d %H:%M", tz=timezone),
-      fin_virada = as.POSIXct(paste(fec_vir, fin_virada), format="%Y-%m-%d %H:%M", tz=timezone)
+      fec_cal = as.Date(fec_cal, format="%Y-%m-%d"),
+      fec_vir = as.Date(fec_vir, format="%Y-%m-%d"),
+      ini_largada = as.POSIXct(paste(fec_cal, ini_largada), format="%Y-%m-%d %H:%M", tz = timezone),
+      fin_largada = as.POSIXct(paste(fec_cal, fin_largada), format="%Y-%m-%d %H:%M", tz = timezone),
+      ini_virada = as.POSIXct(paste(fec_vir, ini_virada), format="%Y-%m-%d %H:%M", tz = timezone),
+      fin_virada = as.POSIXct(paste(fec_vir, fin_virada), format="%Y-%m-%d %H:%M", tz = timezone)
     )
 
-  # Join gps_data with log_data using VE_REF and SI_DATE
+  # Combine gps_data with log_data using VE_REF and SI_DATE
   combined_data <- gps_data %>%
     left_join(log_data, by = c("VE_REF" = "CFR", "SI_DATE" = "Fecha"))
 
-  # Assign value to LE_MET4 and LE_MET6 based en GEAR from log file if not
-  # already present in gps file
+  # Assignar values to LE_MET4 and LE_MET6 based on GEAR
   combined_data <- combined_data %>%
     mutate(
       LE_MET4 = case_when(
-        # If LE_MET4 is empty and GEAR has 5 or less characters, assign GEAR
         is.na(LE_MET4) & nchar(GEAR) <= 5 ~ GEAR,
-
-        # If LE_MET4 is empty and GEAR has more than 5 characters, cut on first
-        # underscore
         is.na(LE_MET4) & nchar(GEAR) > 5 ~ str_extract(GEAR, "^[^_]+"),
-
-        # Keep LE_MET4 if theres already a value
         TRUE ~ LE_MET4
       ),
       LE_MET6 = case_when(
-        # If LE_MET6 is empty and GEAR has mores than 5 characters, assign GEAR
-        # to LE_MET6
         is.na(LE_MET6) & nchar(GEAR) > 5 ~ GEAR,
-
-        # Keep LE_MET6 value if already present
         TRUE ~ LE_MET6
       )
     )
 
-  # Create SI_FOPER y SI_FSTATUS columns based on conditions
+  # Create SI_FOPER and SI_FSTATUS based on conditions
   combined_data <- combined_data %>%
     # Verify if 'Marea' exists and create 'grouping_var' conditionally
     {
@@ -86,53 +91,43 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
         mutate(., grouping_var = ifelse(!is.na(FT_REF), FT_REF, Marea),
                FT_REF = if_else(is.na(FT_REF), Marea, FT_REF))
       } else {
-        mutate(., grouping_var = FT_REF)  # If 'Marea' does not exist, use pnly 'FT_REF'
+        mutate(., grouping_var = FT_REF)  # If 'Marea' does not exist, use only 'FT_REF'
       }
-    }  %>%
-    # Rename and move 'Lance' column if present
-
+    } %>%
+    # If 'Lance' exists, rename to 'FT_LA' and move, if not, create empty 'FT_LA'
     {
       if ("Lance" %in% names(.)) {
-        rename(., FT_LA = Lance) %>%   # Renombrar 'Lance' a 'FT_LA'
-          relocate(FT_LA, .after = FT_REF)  # Mover 'FT_LA' después de 'FT_REF'
+        rename(., FT_LA = Lance) %>%  # Rename'Lance' to 'FT_LA'
+          relocate(FT_LA, .after = FT_REF) %>%  # Move 'FT_LA' after 'FT_REF'
+          group_by(., VE_REF, grouping_var, FT_LA)  # group by FT_LA
       } else {
-        .
+        mutate(., FT_LA = NA) %>%  # Create empty 'FT_LA' if 'Lance' does not exist
+          relocate(FT_LA, .after = FT_REF) %>%  # Move 'FT_LA' after 'FT_REF'
+          group_by(., VE_REF, grouping_var)  # group without FT_LA
       }
-    }%>%
-    # Conditionally group by VE_REF, grouping_var and Lance if present
-    {
-      if ("Lance" %in% names(.)) {
-        rename(FT_LA = Lance) %>%   # Rename Lance to FT_LA
-        relocate(FT_LA, .after = FT_REF)%>% # Move FT_LA column
-        group_by(., VE_REF, grouping_var, FT_LA)
-      } else {
-        group_by(., VE_REF, grouping_var)
-      }
-    }  %>%
+    } %>%
+    # Create Operations
     mutate(
-      # Determine GEAR for each time interval
       SI_FOPER = case_when(
-        is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",  # No operation data
-        SI_TIMESTAMP < ini_largada ~ "ST",  # Before setting, steaming
-        SI_TIMESTAMP >= ini_largada & SI_TIMESTAMP <= fin_largada ~ "SE",  # Setting
-        SI_TIMESTAMP > fin_largada & SI_TIMESTAMP < ini_virada ~ "WT",  # Waiting
-        SI_TIMESTAMP >= ini_virada & SI_TIMESTAMP <= fin_virada ~ "HA",  # Hauling
-        SI_TIMESTAMP > fin_virada ~ "ST",  # After hauling, steaming
-        TRUE ~ "UN"  # Unknown if does not fit any condition
+        is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",
+        SI_TIMESTAMP < ini_largada ~ "ST",
+        SI_TIMESTAMP >= ini_largada & SI_TIMESTAMP <= fin_largada ~ "SE",
+        SI_TIMESTAMP > fin_largada & SI_TIMESTAMP < ini_virada ~ "WT",
+        SI_TIMESTAMP >= ini_virada & SI_TIMESTAMP <= fin_virada ~ "HA",
+        SI_TIMESTAMP > fin_virada ~ "ST",
+        TRUE ~ "UN"
       ),
-      SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "TRUE", "FALSE"),
-
+      SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "TRUE", "FALSE")
     ) %>%
-    ungroup() %>%  # Remove agrupation
-    # Mark proper column based on `log_source` parameter
+    ungroup() %>%
+    # Mark columns based on `log_source`
     mutate(
       SU_ISOB = if_else(log_source == "obs" & !is.na(ini_largada), TRUE, SU_ISOB),
       SI_OGT = if_else(log_source == "ogt" & !is.na(ini_largada), TRUE, SI_OGT),
       SI_LOG = if_else(log_source == "log" & !is.na(ini_largada), TRUE, SI_LOG)
-    )%>%
-    select(-tail(names(.),12)) # Remove unnecessary columns
+    ) %>%
+    select(-tail(names(.), 12))  # Delete unnecessary columns
 
-  # Return final result with updated columns
+  # Return final result
   return(combined_data)
 }
-
