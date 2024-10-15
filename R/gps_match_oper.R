@@ -55,13 +55,13 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
 
   # Create SI_FOPER y SI_FSTATUS columns based on conditions
   combined_data <- combined_data %>%
-    # Verifica si 'Marea' existe y crea 'variable_que_me_falta' condicionalmente
+    # Verify if 'Marea' exists and create 'grouping_var' conditionally
     {
       if ("Marea" %in% names(.)) {
         mutate(., grouping_var = ifelse(!is.na(FT_REF), FT_REF, Marea),
                FT_REF = if_else(is.na(FT_REF), Marea, FT_REF))
       } else {
-        mutate(., grouping_var = FT_REF)  # Si no existe 'Marea', usa solo 'FT_REF'
+        mutate(., grouping_var = FT_REF)  # If 'Marea' does not exist, use pnly 'FT_REF'
       }
     }  %>%
     # Conditionally group by VE_REF, grouping_var and Lance if present
@@ -75,8 +75,8 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
       }
     }  %>%
     mutate(
-      # Determinar el GEAR para cada intervalo de tiempo
-      GEAR_ASSIGNED = GEAR,  # Asignar GEAR según el log_data
+      # Determine GEAR for each time interval
+      GEAR_ASSIGNED = GEAR,  # Assign GEAR using log_data
       SI_FOPER = case_when(
         is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",  # No operation data
         SI_TIMESTAMP < ini_largada ~ "ST",  # Before setting, steaming
