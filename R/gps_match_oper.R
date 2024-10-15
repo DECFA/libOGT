@@ -40,7 +40,9 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
   # Convert log_data columns to POSIXct for prroper combination
   log_data <- log_data %>%
     mutate(
-      Fecha = as.Date(Fecha, format="%Y-%m-%d"),  # Convertir Fecha a tipo Date
+      Fecha = as.Date(Fecha, format="%Y-%m-%d"),
+      fec_cal= as.Date(fec_cal, format="%Y-%m-%d"),
+      fec_vir= as.Date(fec_vir, format="%Y-%m-%d"),
       ini_largada = as.POSIXct(paste(fec_cal, ini_largada), format="%Y-%m-%d %H:%M", tz=timezone),
       fin_largada = as.POSIXct(paste(fec_cal, fin_largada), format="%Y-%m-%d %H:%M", tz=timezone),
       ini_virada = as.POSIXct(paste(fec_vir, ini_virada), format="%Y-%m-%d %H:%M", tz=timezone),
@@ -53,31 +55,45 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
 
   # Create SI_FOPER y SI_FSTATUS columns based on conditions
   combined_data <- combined_data %>%
-    group_by(VE_REF, FT_REF) %>%
     mutate(
-      SI_FOPER = case_when(
-        is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",  # Sin datos de maniobras
-        SI_TIMESTAMP < ini_largada ~ "ST",  # Antes de la largada, navegando
-        SI_TIMESTAMP >= ini_largada & SI_TIMESTAMP <= fin_largada ~ "SE",  # Largando aparejos
-        SI_TIMESTAMP > fin_largada & SI_TIMESTAMP < ini_virada ~ "WT",  # Esperando
-        SI_TIMESTAMP >= ini_virada & SI_TIMESTAMP <= fin_virada ~ "HA",  # Levantando aparejos
-        SI_TIMESTAMP > fin_virada ~ "ST",  # Después de la virada, navegando
-        TRUE ~ "UN"  # Desconocido si no cumple ninguna condición
-      ),
-      SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "TRUE", "FALSE")
+      grouping_var = case_when(
+        !is.na(FT_REF) ~ FT_REF,        # Use FT_REF if available
+        is.na(FT_REF) & !is.na(Marea) ~ Marea  # If FT_REF is NA, use Marea
+      )
     ) %>%
-    ungroup()  # Remove agrupation
-
-  # Mark proper column based on `log_source` parameter
-  combined_data <- combined_data %>%
+    # Conditionally group by VE_REF, grouping_var and Lance if present
+    {
+      if ("Lance" %in% names(.)) {
+        group_by(., VE_REF, grouping_var, Lance)
+      } else {
+        group_by(., VE_REF, grouping_var)
+      }
+    }  %>%
+    mutate(
+      # Determinar el GEAR para cada intervalo de tiempo
+      GEAR_ASSIGNED = GEAR,  # Asignar GEAR según el log_data
+      SI_FOPER = case_when(
+        is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",  # No operation data
+        SI_TIMESTAMP < ini_largada ~ "ST",  # Before setting, steaming
+        SI_TIMESTAMP >= ini_largada & SI_TIMESTAMP <= fin_largada ~ "SE",  # Setting
+        SI_TIMESTAMP > fin_largada & SI_TIMESTAMP < ini_virada ~ "WT",  # Waiting
+        SI_TIMESTAMP >= ini_virada & SI_TIMESTAMP <= fin_virada ~ "HA",  # Hauling
+        SI_TIMESTAMP > fin_virada ~ "ST",  # After hauling, steaming
+        TRUE ~ "UN"  # Unknown if does not fit any condition
+      ),
+      SI_FSTATUS = if_else(SI_FOPER %in% c("SE", "HA", "WT"), "TRUE", "FALSE"),
+      FT_REF = if_else(is.na(FT_REF), Marea, FT_REF)
+    ) %>%
+    ungroup() %>%  # Remove agrupation
+    # Mark proper column based on `log_source` parameter
     mutate(
       SU_ISOB = if_else(log_source == "obs" & !is.na(ini_largada), TRUE, SU_ISOB),
       SI_OGT = if_else(log_source == "ogt" & !is.na(ini_largada), TRUE, SI_OGT),
       SI_LOG = if_else(log_source == "log" & !is.na(ini_largada), TRUE, SI_LOG)
-    )
-
-  # Remove unnecessary columns
-  combined_data <- combined_data %>% select(-tail(names(.),10))
+    )%>%
+    rename(FT_LA = Lance) %>%   # Rename Lance to FT_LA
+    relocate(FT_LA, .after = FT_REF)%>% # Move FT_LA column
+    select(-tail(names(.),12)) # Remove unnecessary columns
 
   # Return final result with updated columns
   return(combined_data)
