@@ -53,6 +53,31 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
   combined_data <- gps_data %>%
     left_join(log_data, by = c("VE_REF" = "CFR", "SI_DATE" = "Fecha"))
 
+  # Assign value to LE_MET4 and LE_MET6 based en GEAR from log file if not
+  # already present in gps file
+  combined_data <- combined_data %>%
+    mutate(
+      LE_MET4 = case_when(
+        # If LE_MET4 is empty and GEAR has 5 or less characters, assign GEAR
+        is.na(LE_MET4) & nchar(GEAR) <= 5 ~ GEAR,
+
+        # If LE_MET4 is empty and GEAR has more than 5 characters, cut on first
+        # underscore
+        is.na(LE_MET4) & nchar(GEAR) > 5 ~ str_extract(GEAR, "^[^_]+"),
+
+        # Keep LE_MET4 if theres already a value
+        TRUE ~ LE_MET4
+      ),
+      LE_MET6 = case_when(
+        # If LE_MET6 is empty and GEAR has mores than 5 characters, assign GEAR
+        # to LE_MET6
+        is.na(LE_MET6) & nchar(GEAR) > 5 ~ GEAR,
+
+        # Keep LE_MET6 value if already present
+        TRUE ~ LE_MET6
+      )
+    )
+
   # Create SI_FOPER y SI_FSTATUS columns based on conditions
   combined_data <- combined_data %>%
     # Verify if 'Marea' exists and create 'grouping_var' conditionally
@@ -64,6 +89,16 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
         mutate(., grouping_var = FT_REF)  # If 'Marea' does not exist, use pnly 'FT_REF'
       }
     }  %>%
+    # Rename and move 'Lance' column if present
+
+    {
+      if ("Lance" %in% names(.)) {
+        rename(., FT_LA = Lance) %>%   # Renombrar 'Lance' a 'FT_LA'
+          relocate(FT_LA, .after = FT_REF)  # Mover 'FT_LA' después de 'FT_REF'
+      } else {
+        .
+      }
+    }%>%
     # Conditionally group by VE_REF, grouping_var and Lance if present
     {
       if ("Lance" %in% names(.)) {
@@ -76,7 +111,6 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
     }  %>%
     mutate(
       # Determine GEAR for each time interval
-      GEAR_ASSIGNED = GEAR,  # Assign GEAR using log_data
       SI_FOPER = case_when(
         is.na(ini_largada) | is.na(fin_largada) | is.na(ini_virada) | is.na(fin_virada) ~ "UN",  # No operation data
         SI_TIMESTAMP < ini_largada ~ "ST",  # Before setting, steaming
