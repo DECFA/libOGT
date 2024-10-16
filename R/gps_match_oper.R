@@ -11,6 +11,8 @@
 #' ini_virada
 #' fin_virada
 #'
+#
+#'
 #' These columns will be automatically generated if create_diary_from_ogt is
 #' used, so make sure that these columns are present in the file if the log file
 #' is created by an observer. On ly dates and times are needed, no positions
@@ -24,6 +26,10 @@
 #' column named SI_FOPER and values ST (Steaming), SE (Setting), HA (Hauling)
 #' and WT (Waiting), SI_FSTATUS marked as TRUE or FALSE and the corresponding
 #' SU_ISOB, SI_OGT or SI_LOG filled where TRUE.
+#' @importFrom stringr str_remove_all str_split str_extract
+#' @importFrom dplyr %>% mutate select left_join case_when if_else rename relocate group_by ungroup
+#' @importFrom purrr map_dbl map2
+#' @importFrom sf st_sfc st_point st_as_sf
 #' @export
 gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "obs") {
 
@@ -88,7 +94,7 @@ gps_match_oper <- function(gps_file, log_file, timezone = "UTC", log_source = "o
     # Verify if 'Marea' exists and create 'grouping_var' conditionally
     {
       if ("Marea" %in% names(.)) {
-        mutate(., grouping_var = ifelse(!is.na(FT_REF), FT_REF, Marea),
+        mutate(., grouping_var = if_else(!is.na(FT_REF), FT_REF, Marea),
                FT_REF = if_else(is.na(FT_REF), Marea, FT_REF))
       } else {
         mutate(., grouping_var = FT_REF)  # If 'Marea' does not exist, use only 'FT_REF'
