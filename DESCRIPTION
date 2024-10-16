@@ -20,5 +20,6 @@ Imports:
         sf,
         imputeTS,
         zoo,
-        purrr
+        purrr,
+        stringr
 LazyData: true
