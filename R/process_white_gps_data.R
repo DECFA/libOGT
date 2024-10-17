@@ -82,15 +82,15 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
     # Process the data
     vessel_track_df <- vessel_track_df %>%
       dplyr::mutate(SI_TIMESTAMP = lubridate::ymd_hms(SI_TIMESTAMP, tz = "UTC"),
-             SI_SP = SI_SP * 0.539957) %>%
-      dplyr::group_by(floor_date(SI_TIMESTAMP, unit = "day")) %>%
+                    SI_SP = SI_SP * 0.539957) %>%
+      dplyr::group_by(lubridate::floor_date(SI_TIMESTAMP, unit = "day")) %>%
       dplyr:: mutate(
-        SI_DISTANCECA = geosphere::distHaversine(cbind(lag(SI_LONG), lag(SI_LATI)), cbind(SI_LONG, SI_LATI)),
-        SI_TDIFF = as.numeric(SI_TIMESTAMP - lag(SI_TIMESTAMP), units = "secs"),
+        SI_DISTANCECA = geosphere::distHaversine(cbind(dplyr::lag(SI_LONG), dplyr::lag(SI_LATI)), cbind(SI_LONG, SI_LATI)),
+        SI_TDIFF = as.numeric(SI_TIMESTAMP - dplyr::lag(SI_TIMESTAMP), units = "secs"),
         SI_SPCA = (SI_DISTANCECA / SI_TDIFF) * 1.94384
       ) %>%
       dplyr::ungroup() %>%
-      dplyr::select(-`floor_date(SI_TIMESTAMP, unit = "day")`)
+      dplyr::select(-`lubridate::floor_date(SI_TIMESTAMP, unit = "day")`)
 
     coords <- vessel_track_df %>%
       dplyr::select(SI_LONG, SI_LATI) %>%
@@ -103,11 +103,12 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
     vessel_track_df <- stats::na.omit(vessel_track_df)
 
     vessel_track_df <- vessel_track_df %>%
-      dplyr::mutate(SU_ISOB = FALSE, FT_REF = NA, SI_OGT = FALSE, SI_LOG = FALSE) %>%
+      dplyr::mutate(SU_ISOB = FALSE, FT_REF = NA, SI_OGT = FALSE, SI_LOG = FALSE, FT_LA = NA) %>%
       dplyr::mutate(
         VE_REF = vessel_code,
         VE_REF = as.factor(VE_REF),
         FT_REF = as.factor(FT_REF),
+        FT_LA = as.factor(FT_LA),
         LE_MET4 = as.factor(ifelse(is.na(le_met4_value), NA, le_met4_value)),
         LE_MET6 = as.factor(ifelse(is.na(le_met6_value), NA, le_met6_value)),
         LE_MET7 = as.factor(ifelse(is.na(le_met7_value), NA, le_met7_value)),
@@ -120,7 +121,7 @@ process_white_gps_data <- function(dir, input_file = NULL, vessel_code, le_met4_
 
     vessel_track_df <- vessel_track_df %>%
       dplyr::select(
-        VE_REF, FT_REF, SI_TIMESTAMP, SI_LATI, SI_LONG, SI_SP, SI_SPCA, SI_HE,
+        VE_REF, FT_REF, FT_LA, SI_TIMESTAMP, SI_LATI, SI_LONG, SI_SP, SI_SPCA, SI_HE,
         SI_COG, SI_DISTANCECA, SI_TDIFF, LE_MET4, LE_MET6, LE_MET7,
         SI_FSTATUS, SI_FOPER, SU_ISOB, SI_OGT, SI_LOG
       )
